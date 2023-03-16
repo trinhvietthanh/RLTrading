@@ -1,0 +1,5 @@
+*.csv
+trained_models/
+__pycache__
+.idea
+tensorboard_log
