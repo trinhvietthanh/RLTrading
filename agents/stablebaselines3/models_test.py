@@ -126,6 +126,7 @@ class DRLAgent:
             if dones[0]:
                 print("hit end!")
                 break
+        print(">>>>", account_memory)
         return account_memory[0], actions_memory[0]
 
     @staticmethod
@@ -138,21 +139,22 @@ class DRLAgent:
             print("Successfully load model", cwd)
         except BaseException:
             raise ValueError("Fail to load agent!")
+
         # test on the testing env
         state = environment.reset()
         episode_returns = []  # the cumulative_return / initial_account
-        episode_total_assets = [environment.initial_amount]
+        episode_total_assets = [environment.initial_total_asset]
         done = False
         while not done:
             action = model.predict(state, deterministic=deterministic)[0]
             state, reward, done, _ = environment.step(action)
-            # total_asset = (
-            #     environment.initial_amount
-            #     + (environment.price_ary[environment.day] * environment.stocks).sum()
-            # )
-       
-            episode_total_assets.append(reward)
-            episode_return = reward / environment.initial_amount
+
+            total_asset = (
+                environment.amount
+                + (environment.price_ary[environment.day] * environment.stocks).sum()
+            )
+            episode_total_assets.append(total_asset)
+            episode_return = total_asset / environment.initial_total_asset
             episode_returns.append(episode_return)
 
         print("episode_return", episode_return)

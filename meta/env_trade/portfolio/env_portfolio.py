@@ -74,6 +74,7 @@ class StockPortfolioEnv(gym.Env):
         state_space,
         action_space,
         tech_indicator_list,
+        init_state=None,
         turbulence_threshold=None,
         lookback=252,
         day=0,
@@ -119,13 +120,16 @@ class StockPortfolioEnv(gym.Env):
         self.asset_memory = [self.initial_amount]
         # memorize portfolio return each step
         self.portfolio_return_memory = [0]
-        self.actions_memory = [[1 / self.stock_dim] * self.stock_dim]
+        if init_state:
+            self.actions_memory = init_state
+        else:
+            self.actions_memory = [[1 / self.stock_dim] * self.stock_dim]
         self.date_memory = [self.data.date.unique()[0]]
 
     def step(self, actions):
         # print(self.day)
         self.terminal = self.day >= len(self.df.index.unique()) - 1
-
+        
         if self.terminal:
             df = pd.DataFrame(self.portfolio_return_memory)
             df.columns = ["daily_return"]
@@ -163,7 +167,7 @@ class StockPortfolioEnv(gym.Env):
             # else:
             #  norm_actions = actions
             weights = self.softmax_normalization(actions)
-            # print("Normalized actions: ", weights)
+            
             self.actions_memory.append(weights)
             last_day_memory = self.data
 

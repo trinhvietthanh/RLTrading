@@ -87,41 +87,6 @@ DOW_30_TICKER = [
     "DOW",
 ]
 
-
-VN_30_TICKER = [
-    "AXP",
-    "AMGN",
-    "AAPL",
-    "BA",
-    "CAT",
-    "CSCO",
-    "CVX",
-    "GS",
-    "HD",
-    "HON",
-    "IBM",
-    "INTC",
-    "JNJ",
-    "KO",
-    "JPM",
-    "MCD",
-    "MMM",
-    "MRK",
-    "MSFT",
-    "NKE",
-    "PG",
-    "TRV",
-    "UNH",
-    "CRM",
-    "VZ",
-    "V",
-    "WBA",
-    "WMT",
-    "DIS",
-    "DOW",
-]
-
-
 VN_30_TICKER = [
     "HPG",
     # "SSI",
@@ -157,10 +122,49 @@ VN_30_TICKER = [
 ]
 
 
+FUEVFVND_PER = {
+    "ACB": 8.3,
+    "CTG": 0.7,
+    "DHC": 0.2,
+    "EIB": 1.1,
+    "FPT": 16,
+    "GMD": 2.5,
+    "KDH": 1.5,
+    "MBB": 5.8,
+    "MSB": 2.7,
+    "MWG": 14.5,
+    "NLG": 0.6,
+    "OCB": 0.6,
+    "PNJ": 15.6,
+    "REE": 10.6,
+    "TCB": 7.2,
+    "TPB": 2.2,
+    "VIB": 2.2,
+    "TCM": 0.2,
+    "VPB": 7.5,
+}
 
-
-
-
+FUEVFVND = [
+    "ACB",
+    "CTG",
+    "DHC",
+    "EIB",
+    "FPT",
+    "GMD",
+    "KDH",
+    "MBB",
+    "MSB",
+    "MWG",
+    "NLG",
+    "OCB",
+    "PNJ",
+    "REE",
+    "TCB",
+    "TPB",
+    "VIB",
+    "TCM",
+    "VPB"
+    ]
 USER_AGENTS = [
     "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/100.0.4896.127 Safari/537.36",
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/99.0.4844.51 Safari/537.36",

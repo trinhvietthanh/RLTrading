@@ -107,6 +107,7 @@ class VNDirectDownloader:
         data = res.json()['data']
 
         data = pd.DataFrame(data)
+        print("SYMBOL: ", symbol)
         stock_data = data[['date', 'adClose', 'close', 'pctChange', 'average', 'nmVolume',
                         'nmValue', 'ptVolume', 'ptValue', 'open', 'high', 'low']].copy()
         stock_data.columns = ['date', 'adjust', 'close', 'change_perc', 'avg',
