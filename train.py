@@ -2,6 +2,8 @@ import os
 
 import config
 import config_tickers
+from meta.env_trade.portfolio.env_portfolio import StockPortfolioEnv
+from meta.preprocessor.vndirectdownloader import VNDirectDownloader
 
 if not os.path.exists("./" + config.DATA_SAVE_DIR):
     os.makedirs("./" + config.DATA_SAVE_DIR)
@@ -20,11 +22,14 @@ from meta.preprocessor.preprocessors import (
 )
 import pandas as pd
 
-df = YahooDownloader(
-    start_date="2008-01-01",
-    end_date="2022-06-02",
-    ticker_list=config_tickers.DOW_30_TICKER,
-).fetch_data()
+TRAIN_START_DATE = '2018-01-01'
+TRAIN_END_DATE = '2022-12-01'
+TEST_START_DATE = '2022-12-02'
+TEST_END_DATE = '2023-04-20'
+
+df = VNDirectDownloader(start_date = TRAIN_START_DATE,
+                     end_date = TEST_END_DATE,
+                     ticker_list = config.VN_30_TICKER).fetch_data()
 
 fe = FeatureEngineer(
     use_technical_indicator=True,
@@ -64,7 +69,7 @@ df_cov = pd.DataFrame(
 df = df.merge(df_cov, on="date")
 df = df.sort_values(["date", "tic"]).reset_index(drop=True)
 
-train = data_split(df, "2009-04-01", "2020-03-31")
+train = data_split(df, TRAIN_START_DATE, TRAIN_END_DATE)
 
 import numpy as np
 import pandas as pd
@@ -75,245 +80,6 @@ import matplotlib
 
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
-from stable_baselines3.common.vec_env import DummyVecEnv
-
-
-class StockPortfolioEnv(gym.Env):
-    """A portfolio allocation environment for OpenAI gym
-
-    Attributes
-    ----------
-        df: DataFrame
-            input data
-        stock_dim : int
-            number of unique stocks
-        hmax : int
-            maximum number of shares to trade
-        initial_amount : int
-            start money
-        transaction_cost_pct: float
-            transaction cost percentage per trade
-        reward_scaling: float
-            scaling factor for reward, good for training
-        state_space: int
-            the dimension of input features
-        action_space: int
-            equals stock dimension
-        tech_indicator_list: list
-            a list of technical indicator names
-        turbulence_threshold: int
-            a threshold to control risk aversion
-        day: int
-            an increment number to control date
-
-    Methods
-    -------
-    _sell_stock()
-        perform sell action based on the sign of the action
-    _buy_stock()
-        perform buy action based on the sign of the action
-    step()
-        at each step the agent will return actions, then
-        we will calculate the reward, and return the next observation.
-    reset()
-        reset the environment
-    render()
-        use render to return other functions
-    save_asset_memory()
-        return account value at each time step
-    save_action_memory()
-        return actions/positions at each time step
-
-
-    """
-
-    metadata = {"render.modes": ["human"]}
-
-    def __init__(
-        self,
-        df,
-        stock_dim,
-        hmax,
-        initial_amount,
-        transaction_cost_pct,
-        reward_scaling,
-        state_space,
-        action_space,
-        tech_indicator_list,
-        turbulence_threshold=None,
-        lookback=252,
-        day=0,
-    ):
-        # super(StockEnv, self).__init__()
-        # money = 10 , scope = 1
-        self.day = day
-        self.lookback = lookback
-        self.df = df
-        self.stock_dim = stock_dim
-        self.hmax = hmax
-        self.initial_amount = initial_amount
-        self.transaction_cost_pct = transaction_cost_pct
-        self.reward_scaling = reward_scaling
-        self.state_space = state_space
-        self.action_space = action_space
-        self.tech_indicator_list = tech_indicator_list
-
-        # action_space normalization and shape is self.stock_dim
-        self.action_space = spaces.Box(low=0, high=1, shape=(self.action_space,))
-        self.observation_space = spaces.Box(
-            low=-np.inf,
-            high=np.inf,
-            shape=(
-                self.state_space + len(self.tech_indicator_list),
-                self.state_space,
-            ),
-        )
-
-        # load data from a pandas dataframe
-        self.data = self.df.loc[self.day, :]
-        self.covs = self.data["cov_list"].values[0]
-        self.state = np.append(
-            np.array(self.covs),
-            [self.data[tech].values.tolist() for tech in self.tech_indicator_list],
-            axis=0,
-        )
-        self.terminal = False
-        self.turbulence_threshold = turbulence_threshold
-        # initalize state: inital portfolio return + individual stock return + individual weights
-        self.portfolio_value = self.initial_amount
-
-        # memorize portfolio value each step
-        self.asset_memory = [self.initial_amount]
-        # memorize portfolio return each step
-        self.portfolio_return_memory = [0]
-        self.actions_memory = [[1 / self.stock_dim] * self.stock_dim]
-        self.date_memory = [self.data.date.unique()[0]]
-
-    def step(self, actions):
-        self.terminal = self.day >= len(self.df.index.unique()) - 1
-
-        if self.terminal:
-            df = pd.DataFrame(self.portfolio_return_memory)
-            df.columns = ["daily_return"]
-            plt.plot(df.daily_return.cumsum(), "r")
-            plt.savefig("results/cumulative_reward.png")
-            plt.close()
-
-            plt.plot(self.portfolio_return_memory, "r")
-            plt.savefig("results/rewards.png")
-            plt.close()
-
-            print("=================================")
-            print("begin_total_asset:{}".format(self.asset_memory[0]))
-            print("end_total_asset:{}".format(self.portfolio_value))
-
-            df_daily_return = pd.DataFrame(self.portfolio_return_memory)
-            df_daily_return.columns = ["daily_return"]
-            if df_daily_return["daily_return"].std() != 0:
-                sharpe = (
-                    (252**0.5)
-                    * df_daily_return["daily_return"].mean()
-                    / df_daily_return["daily_return"].std()
-                )
-                print("Sharpe: ", sharpe)
-            print("=================================")
-
-            return self.state, self.reward, self.terminal, {}
-
-        else:
-            weights = self.softmax_normalization(actions)
-            self.actions_memory.append(weights)
-            last_day_memory = self.data
-
-            # load next state
-            self.day += 1
-            self.data = self.df.loc[self.day, :]
-            self.covs = self.data["cov_list"].values[0]
-            self.state = np.append(
-                np.array(self.covs),
-                [self.data[tech].values.tolist() for tech in self.tech_indicator_list],
-                axis=0,
-            )
-            portfolio_return = sum(
-                ((self.data.close.values / last_day_memory.close.values) - 1) * weights
-            )
-            log_portfolio_return = np.log(
-                sum((self.data.close.values / last_day_memory.close.values) * weights)
-            )
-            # update portfolio value
-            new_portfolio_value = self.portfolio_value * (1 + portfolio_return)
-            self.portfolio_value = new_portfolio_value
-
-            # save into memory
-            self.portfolio_return_memory.append(portfolio_return)
-            self.date_memory.append(self.data.date.unique()[0])
-            self.asset_memory.append(new_portfolio_value)
-
-            # the reward is the new portfolio value or end portfolo value
-            self.reward = new_portfolio_value
-
-        return self.state, self.reward, self.terminal, {}
-
-    def reset(self):
-        self.asset_memory = [self.initial_amount]
-        self.day = 0
-        self.data = self.df.loc[self.day, :]
-        # load states
-        self.covs = self.data["cov_list"].values[0]
-        self.state = np.append(
-            np.array(self.covs),
-            [self.data[tech].values.tolist() for tech in self.tech_indicator_list],
-            axis=0,
-        )
-        self.portfolio_value = self.initial_amount
-        # self.cost = 0
-        # self.trades = 0
-        self.terminal = False
-        self.portfolio_return_memory = [0]
-        self.actions_memory = [[1 / self.stock_dim] * self.stock_dim]
-        self.date_memory = [self.data.date.unique()[0]]
-        return self.state
-
-    def render(self, mode="human"):
-        return self.state
-
-    def softmax_normalization(self, actions):
-        numerator = np.exp(actions)
-        denominator = np.sum(np.exp(actions))
-        softmax_output = numerator / denominator
-        return softmax_output
-
-    def save_asset_memory(self):
-        date_list = self.date_memory
-        portfolio_return = self.portfolio_return_memory
-        # print(len(date_list))
-        # print(len(asset_list))
-        df_account_value = pd.DataFrame(
-            {"date": date_list, "daily_return": portfolio_return}
-        )
-        return df_account_value
-
-    def save_action_memory(self):
-        # date and close price length must match actions length
-        date_list = self.date_memory
-        df_date = pd.DataFrame(date_list)
-        df_date.columns = ["date"]
-
-        action_list = self.actions_memory
-        df_actions = pd.DataFrame(action_list)
-        df_actions.columns = self.data.tic.values
-        df_actions.index = df_date.date
-        # df_actions = pd.DataFrame({'date':date_list,'actions':action_list})
-        return df_actions
-
-    def _seed(self, seed=None):
-        self.np_random, seed = seeding.np_random(seed)
-        return [seed]
-
-    def get_sb_env(self):
-        e = DummyVecEnv([lambda: self])
-        obs = e.reset()
-        return e, obs
 
 
 stock_dimension = len(train.tic.unique())
@@ -343,12 +109,14 @@ from agents.stablebaselines3.models import DRLAgent
 
 agent = DRLAgent(env=env_train)
 
-A2C_PARAMS = {"n_steps": 10, "ent_coef": 0.005, "learning_rate": 0.0004}
-model_a2c = agent.get_model(model_name="a2c", model_kwargs=A2C_PARAMS)
+# A2C_PARAMS = {"n_steps": 10, "ent_coef": 0.005, "learning_rate": 0.0004}
+# model_a2c = agent.get_model(model_name="a2c", model_kwargs=A2C_PARAMS)
 
-trained_a2c = agent.train_model(
-    model=model_a2c, tb_log_name="a2c", total_timesteps=40000
-)
+# trained_a2c = agent.train_model(
+#     model=model_a2c, tb_log_name="a2c", total_timesteps=40000
+# )
+# trained_a2c.save('trained_models/trained_a2c_vn.zip')
+trained_a2c = agent.load_model("ppo", "trained_models/trained_a2c_vn.zip")
 
 agent = DRLAgent(env=env_train)
 PPO_PARAMS = {
@@ -357,13 +125,16 @@ PPO_PARAMS = {
     "learning_rate": 0.001,
     "batch_size": 128,
 }
-model_ppo = agent.get_model("ppo", model_kwargs=PPO_PARAMS)
+# model_ppo = agent.get_model("ppo", model_kwargs=PPO_PARAMS)
 
-trained_ppo = agent.train_model(
-    model=model_ppo, tb_log_name="ppo", total_timesteps=40000
-)
+# trained_ppo = agent.train_model(
+#     model=model_ppo, tb_log_name="ppo", total_timesteps=40000
+# )
 
-trade = data_split(df, "2020-04-01", "2022-05-31")
+# trained_ppo.save('trained_models/trained_ppo_vn.zip')
+
+trained_ppo = agent.load_model("ppo", "trained_models/trained_ppo_vn.zip")
+trade = data_split(df, TEST_START_DATE, TEST_END_DATE)
 e_trade_gym = StockPortfolioEnv(df=trade, **env_kwargs)
 
 
@@ -407,6 +178,12 @@ df_daily_return_a2c, df_actions_a2c = DRLAgent.DRL_prediction(
 df_daily_return_ppo, df_actions_ppo = DRLAgent.DRL_prediction(
     model=trained_ppo, environment=e_trade_gym
 )
+
+df_actions_ppo.to_csv("df_action_ppo.csv")
+df_actions_a2c.to_csv("df_action_a2c.csv")
+df_daily_return_a2c.to_csv("daily_return_a2c.csv")
+df_daily_return_ppo.to_csv("daily_return_ppo.csv")
+
 time_ind = pd.Series(df_daily_return_a2c.date)
 a2c_cumpod = (df_daily_return_a2c.daily_return + 1).cumprod() - 1
 ppo_cumpod = (df_daily_return_ppo.daily_return + 1).cumprod() - 1
@@ -591,6 +368,8 @@ rf_portfolio, rf_stats, rf_cumprod, rf_weights = output_predict(rf_model)
 ) = output_predict(None, True)
 
 
+print("LR PORTFOLIO: ", lr_stats)
+
 def calculate_gradient(
     model, interpolated_input, actions, feature_idx, stock_idx, h=1e-1
 ):
@@ -625,7 +404,8 @@ for algo in {"A2C", "PPO"}:
 
     model = eval("trained_" + algo.lower())
     df_actions = eval("df_actions_" + algo.lower())
-    for i in range(len(unique_trade_date) - 1):
+    
+    for i in range(0, len(unique_trade_date) - 1, 2):
         date = unique_trade_date[i]
         covs = trade[trade["date"] == date].cov_list.iloc[0]
         features = trade[trade["date"] == date][tech_indicator_list].values  # N x K
@@ -691,7 +471,7 @@ for algo in ["LR", "RF", "Reference Model", "SVM", "DT", "A2C", "PPO"]:
     else:
         weights = reference_weights
 
-    for i in range(len(unique_trade_date) - 1):
+    for i in range(0, len(unique_trade_date) - 1, 2):
         date = unique_trade_date[i]
         next_date = unique_trade_date[i + 1]
         df_temp = df[df.date == date].reset_index(drop=True)
@@ -793,90 +573,90 @@ for i in range(0, len(unique_trade_date)):
 performance_score = pd.DataFrame(performance_score)
 
 multi_performance_score = {"date": [], "algo": [], "score": []}
-window = 20
-for i in range(len(unique_trade_date) - window):
-    date_ = unique_trade_date[i]
-    if len(meta_score_coef[(meta_score_coef["date"] == date_)]) == 0:
-        continue
-    lr_coef = (
-        meta_score_coef[
-            (meta_score_coef["date"] == date_) & (meta_score_coef["algo"] == "LR")
-        ]["coef"]
-        .values[0][["macd", "rsi_30", "cci_30", "dx_30"]]
-        .values
-    )
-    rf_coef = (
-        meta_score_coef[
-            (meta_score_coef["date"] == date_) & (meta_score_coef["algo"] == "RF")
-        ]["coef"]
-        .values[0][["macd", "rsi_30", "cci_30", "dx_30"]]
-        .values
-    )
-    reference_coef = (
-        meta_score_coef[
-            (meta_score_coef["date"] == date_)
-            & (meta_score_coef["algo"] == "Reference Model")
-        ]["coef"]
-        .values[0][["macd", "rsi_30", "cci_30", "dx_30"]]
-        .values
-    )
-    for w in range(1, window):
-        date_f = unique_trade_date[i + w]
-        prx_coef = (
-            meta_score_coef[
-                (meta_score_coef["date"] == date_f)
-                & (meta_score_coef["algo"] == "Reference Model")
-            ]["coef"]
-            .values[0][["macd", "rsi_30", "cci_30", "dx_30"]]
-            .values
-        )
-        reference_coef += prx_coef
-    reference_coef = reference_coef / window
-    dt_coef = (
-        meta_score_coef[
-            (meta_score_coef["date"] == date_) & (meta_score_coef["algo"] == "DT")
-        ]["coef"]
-        .values[0][["macd", "rsi_30", "cci_30", "dx_30"]]
-        .values
-    )
-    svm_coef = (
-        meta_score_coef[
-            (meta_score_coef["date"] == date_) & (meta_score_coef["algo"] == "SVM")
-        ]["coef"]
-        .values[0][["macd", "rsi_30", "cci_30", "dx_30"]]
-        .values
-    )
-    saliency_coef_a2c = meta_Q[(meta_Q["date"] == date_) & (meta_Q["algo"] == "A2C")][
-        "Saliency Map"
-    ].values
-    saliency_coef_ppo = meta_Q[(meta_Q["date"] == date_) & (meta_Q["algo"] == "PPO")][
-        "Saliency Map"
-    ].values
-    lr_score = np.corrcoef(lr_coef, reference_coef)[0][1]
-    rf_score = np.corrcoef(rf_coef, reference_coef)[0][1]
-    dt_score = np.corrcoef(dt_coef, reference_coef)[0][1]
-    svm_score = np.corrcoef(svm_coef, reference_coef)[0][1]
-    saliency_score_a2c = np.corrcoef(saliency_coef_a2c, reference_coef)[0][1]
-    saliency_score_ppo = np.corrcoef(saliency_coef_ppo, reference_coef)[0][1]
+# window = 20
+# for i in range(0, len(unique_trade_date) - window):
+#     date_ = unique_trade_date[i]
+#     if len(meta_score_coef[(meta_score_coef["date"] == date_)]) == 0:
+#         continue
+#     lr_coef = (
+#         meta_score_coef[
+#             (meta_score_coef["date"] == date_) & (meta_score_coef["algo"] == "LR")
+#         ]["coef"]
+#         .values[0][["macd", "rsi_30", "cci_30", "dx_30"]]
+#         .values
+#     )
+#     rf_coef = (
+#         meta_score_coef[
+#             (meta_score_coef["date"] == date_) & (meta_score_coef["algo"] == "RF")
+#         ]["coef"]
+#         .values[0][["macd", "rsi_30", "cci_30", "dx_30"]]
+#         .values
+#     )
+#     reference_coef = (
+#         meta_score_coef[
+#             (meta_score_coef["date"] == date_)
+#             & (meta_score_coef["algo"] == "Reference Model")
+#         ]["coef"]
+#         .values[0][["macd", "rsi_30", "cci_30", "dx_30"]]
+#         .values
+#     )
+#     for w in range(1, window):
+#         date_f = unique_trade_date[i + w]
+#         prx_coef = (
+#             meta_score_coef[
+#                 (meta_score_coef["date"] == date_f)
+#                 & (meta_score_coef["algo"] == "Reference Model")
+#             ]["coef"]
+#             .values[0][["macd", "rsi_30", "cci_30", "dx_30"]]
+#             .values
+#         )
+#         reference_coef += prx_coef
+#     reference_coef = reference_coef / window
+#     dt_coef = (
+#         meta_score_coef[
+#             (meta_score_coef["date"] == date_) & (meta_score_coef["algo"] == "DT")
+#         ]["coef"]
+#         .values[0][["macd", "rsi_30", "cci_30", "dx_30"]]
+#         .values
+#     )
+#     svm_coef = (
+#         meta_score_coef[
+#             (meta_score_coef["date"] == date_) & (meta_score_coef["algo"] == "SVM")
+#         ]["coef"]
+#         .values[0][["macd", "rsi_30", "cci_30", "dx_30"]]
+#         .values
+#     )
+#     saliency_coef_a2c = meta_Q[(meta_Q["date"] == date_) & (meta_Q["algo"] == "A2C")][
+#         "Saliency Map"
+#     ].values
+#     saliency_coef_ppo = meta_Q[(meta_Q["date"] == date_) & (meta_Q["algo"] == "PPO")][
+#         "Saliency Map"
+#     ].values
+#     lr_score = np.corrcoef(lr_coef, reference_coef)[0][1]
+#     rf_score = np.corrcoef(rf_coef, reference_coef)[0][1]
+#     dt_score = np.corrcoef(dt_coef, reference_coef)[0][1]
+#     svm_score = np.corrcoef(svm_coef, reference_coef)[0][1]
+#     saliency_score_a2c = np.corrcoef(saliency_coef_a2c, reference_coef)[0][1]
+#     saliency_score_ppo = np.corrcoef(saliency_coef_ppo, reference_coef)[0][1]
 
-    for algo in ["LR", "A2C", "RF", "PPO", "DT", "SVM"]:
-        multi_performance_score["date"] += [date_]
-        multi_performance_score["algo"] += [algo]
-        if algo == "LR":
-            score = lr_score
-        elif algo == "RF":
-            score = rf_score
-        elif algo == "DT":
-            score = dt_score
-        elif algo == "A2C":
-            score = saliency_score_a2c
-        elif algo == "SVM":
-            score = svm_score
-        else:
-            score = saliency_score_ppo
-        multi_performance_score["score"] += [score]
+#     for algo in ["LR", "A2C", "RF", "PPO", "DT", "SVM"]:
+#         multi_performance_score["date"] += [date_]
+#         multi_performance_score["algo"] += [algo]
+#         if algo == "LR":
+#             score = lr_score
+#         elif algo == "RF":
+#             score = rf_score
+#         elif algo == "DT":
+#             score = dt_score
+#         elif algo == "A2C":
+#             score = saliency_score_a2c
+#         elif algo == "SVM":
+#             score = svm_score
+#         else:
+#             score = saliency_score_ppo
+#         multi_performance_score["score"] += [score]
 
-multi_performance_score = pd.DataFrame(multi_performance_score)
+# multi_performance_score = pd.DataFrame(multi_performance_score)
 
 from datetime import datetime as dt
 

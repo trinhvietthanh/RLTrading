@@ -76,6 +76,7 @@ class StockPortfolioEnv(gym.Env):
         tech_indicator_list,
         init_state=None,
         turbulence_threshold=None,
+        T_plus = 1,
         lookback=252,
         day=0,
     ):
@@ -92,7 +93,7 @@ class StockPortfolioEnv(gym.Env):
         self.state_space = state_space
         self.action_space = action_space
         self.tech_indicator_list = tech_indicator_list
-
+        self.T_plus = T_plus
         # action_space normalization and shape is self.stock_dim
         self.action_space = spaces.Box(low=0, high=1, shape=(self.action_space,))
         # Shape = (34, 30)
@@ -120,16 +121,16 @@ class StockPortfolioEnv(gym.Env):
         self.asset_memory = [self.initial_amount]
         # memorize portfolio return each step
         self.portfolio_return_memory = [0]
+        self.init_state = init_state
         if init_state:
-            self.actions_memory = init_state
+            self.actions_memory = [init_state]
         else:
             self.actions_memory = [[1 / self.stock_dim] * self.stock_dim]
         self.date_memory = [self.data.date.unique()[0]]
 
     def step(self, actions):
-        # print(self.day)
-        self.terminal = self.day >= len(self.df.index.unique()) - 1
-        
+        self.terminal = self.day >= len(self.df.index.unique()) - 1 - self.T_plus
+
         if self.terminal:
             df = pd.DataFrame(self.portfolio_return_memory)
             df.columns = ["daily_return"]
@@ -159,20 +160,19 @@ class StockPortfolioEnv(gym.Env):
             return self.state, self.reward, self.terminal, {}
 
         else:
-            # print("Model actions: ",actions)
             # actions are the portfolio weight
             # normalize to sum of 1
             # if (np.array(actions) - np.array(actions).min()).sum() != 0:
             #  norm_actions = (np.array(actions) - np.array(actions).min()) / (np.array(actions) - np.array(actions).min()).sum()
             # else:
             #  norm_actions = actions
-            weights = self.softmax_normalization(actions)
-            
+            weights = self.new_asset_per(actions)
+            # weights = norm_actions
             self.actions_memory.append(weights)
             last_day_memory = self.data
 
             # load next state
-            self.day += 1
+            self.day += 1 + self.T_plus
             self.data = self.df.loc[self.day, :]
             self.covs = self.data["cov_list"].values[0]
             self.state = np.append(
@@ -218,7 +218,10 @@ class StockPortfolioEnv(gym.Env):
         # self.trades = 0
         self.terminal = False
         self.portfolio_return_memory = [0]
-        self.actions_memory = [[1 / self.stock_dim] * self.stock_dim]
+        if self.init_state:
+            self.actions_memory = [self.init_state]
+        else:
+            self.actions_memory = [[1 / self.stock_dim] * self.stock_dim]
         self.date_memory = [self.data.date.unique()[0]]
         return self.state
 
@@ -230,11 +233,18 @@ class StockPortfolioEnv(gym.Env):
         denominator = np.sum(np.exp(actions))
         softmax_output = numerator / denominator
         return softmax_output
+    
+    def new_asset_per(self, action):
+        learning_rate = 0.0005
+        old_ratio = self.actions_memory[-1]
+        new_ratio_sum = sum(action)
+        new_ratio_dist = [r/new_ratio_sum for r in action]
+        new_asset = [learning_rate * new_ratio_dist[i] + (1-learning_rate) * old_ratio[i] for i in range(len(old_ratio))]
+        return new_asset
 
     def save_asset_memory(self):
         date_list = self.date_memory
         portfolio_return = self.portfolio_return_memory
-        # print(len(date_list))
         # print(len(asset_list))
         df_account_value = pd.DataFrame(
             {"date": date_list, "daily_return": portfolio_return}

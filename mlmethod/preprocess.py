@@ -16,13 +16,16 @@ import statsmodels.api as sm
 tech_indicator_list = ["macd", "rsi_30", "cci_30", "dx_30"]
 
 def prepare_data(trainData):
-    train_date = sorted(set(trainData.data.value))
+    train_date = sorted(set(trainData.date.values))
     X = []
     for i in range(0, len(train_date) - 1):
         d = train_date[i]
         d_next = train_date[i + 1]
         y = (
-            trainData.loc[trainData["date"] == d_next].return_list.iloc[0].loc[d_next].reset_index()
+            trainData.loc[trainData["date"] == d_next]
+            .return_list.iloc[0]
+            .loc[d_next]
+            .reset_index()
         )
         y.columns = ["tic", "return"]
         x = trainData.loc[trainData['date'] == d]["tic", "macd", "rsi_30", "cci_30", "dx_30"]

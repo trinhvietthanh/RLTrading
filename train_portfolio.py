@@ -29,16 +29,16 @@ if not os.path.exists("./" + config.TENSORBOARD_LOG_DIR):
 if not os.path.exists("./" + config.RESULTS_DIR):
     os.makedirs("./" + config.RESULTS_DIR)
     
-TRAIN_START_DATE = '2022-10-02'
-TRAIN_END_DATE = '2022-11-01'
-TEST_START_DATE = '2022-11-02'
-TEST_END_DATE = '2023-03-10'
+TRAIN_START_DATE = '2018-01-01'
+TRAIN_END_DATE = '2022-12-01'
+TEST_START_DATE = '2022-12-02'
+TEST_END_DATE = '2023-04-20'
 
 # df = VNDirectDownloader(start_date = TRAIN_START_DATE,
 #                      end_date = TEST_END_DATE,
-#                      ticker_list = config.FUEVFVND).fetch_data()
-# # df.to_csv("datavip.csv", index=False)
-# # df = pd.read_csv("datavip.csv")
+#                      ticker_list = config.VN_30_TICKER).fetch_data()
+# df.to_csv("datavip.csv", index=False)
+# # # df = pd.read_csv("datavip.csv")
 # fe = FeatureEngineer(
 #                     use_technical_indicator=True,
 #                     use_turbulence=False,
@@ -80,8 +80,7 @@ stock_dimension = len(train.tic.unique())
 state_space = stock_dimension 
 print(f"Stock Dimension: {stock_dimension}, State Space: {state_space}")
 
-init_state = [config.FUEVFVND_PER[key]/100 for key in config.FUEVFVND]
-print("STATE: ", init_state)
+init_state = [config.VN30_PER[key]/100 for key in config.VN30_PER]
 env_kwargs = {
     "hmax": 100, 
     "initial_amount": 10000, 
@@ -112,18 +111,18 @@ PPO_PARAMS = {
     "learning_rate": 0.00025,
     "batch_size": 64,
 }
-model_ppo = agent.get_model("ppo",model_kwargs = PPO_PARAMS)
+# model_ppo = agent.get_model("ppo",model_kwargs = PPO_PARAMS)
 
-trained_ppo = agent.train_model(model=model_ppo, 
-                             tb_log_name='ppo',
-                             total_timesteps=80000)
+# trained_ppo = agent.train_model(model=model_ppo, 
+#                              tb_log_name='ppo',
+#                              total_timesteps=80000)
 # trained_ppo.save('trained_models/trained_ppo.zip')
-
+trained_ppo = agent.load_model("ppo", "trained_models/trained_ppo.zip")
 # Trader
 trade = data_split(df, TEST_START_DATE, TEST_END_DATE)
 
 e_trade_gym = StockPortfolioEnv(df = trade, **env_kwargs)
-# trained_ppo = agent.DRL_prediction_load_from_file("ppo", e_trade_gym, "trained_models/trained_ppo.zip")
+# episode_total_assets = agent.DRL_prediction_load_from_file("ppo", e_trade_gym, "trained_models/trained_ppo.zip")
 df_daily_return, df_actions = DRLAgent.DRL_prediction(model=trained_ppo,
                         environment = e_trade_gym)
 
@@ -131,18 +130,18 @@ df_daily_return.to_csv('df_daily_return.csv')
 df_actions.to_csv('df_actions.csv')
 
 
-# #Backtest
-# from pyfolio import timeseries
-# DRL_strat = convert_daily_return_to_pyfolio_ts(df_daily_return)
-# perf_func = timeseries.perf_stats 
-# perf_stats_all = perf_func( returns=DRL_strat, 
-#                               factor_returns=DRL_strat, 
-#                                 positions=None, transactions=None, turnover_denom="AGB")
+#Backtest
+from pyfolio import timeseries
+DRL_strat = convert_daily_return_to_pyfolio_ts(df_daily_return)
+perf_func = timeseries.perf_stats 
+perf_stats_all = perf_func( returns=DRL_strat, 
+                              factor_returns=DRL_strat, 
+                                positions=None, transactions=None, turnover_denom="AGB")
 
-# print("==============DRL Strategy Stats===========")
-# print(perf_stats_all)
+print("==============DRL Strategy Stats===========")
+print(perf_stats_all)
 
-# #baseline stats
+#baseline stats
 # print("==============Get Baseline Stats===========")
 # baseline_df = get_baseline(
 #         ticker="^DJI", 
