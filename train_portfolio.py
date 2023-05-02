@@ -60,6 +60,7 @@ return_list = []
 # look back is one year
 lookback=252
 for i in range(lookback,len(df.index.unique())):
+  print(i)
   data_lookback = df.loc[i-lookback:i,:]
   price_lookback=data_lookback.pivot_table(index = 'date',columns = 'tic', values = 'close')
   return_lookback = price_lookback.pct_change().dropna()

@@ -573,90 +573,90 @@ for i in range(0, len(unique_trade_date)):
 performance_score = pd.DataFrame(performance_score)
 
 multi_performance_score = {"date": [], "algo": [], "score": []}
-# window = 20
-# for i in range(0, len(unique_trade_date) - window):
-#     date_ = unique_trade_date[i]
-#     if len(meta_score_coef[(meta_score_coef["date"] == date_)]) == 0:
-#         continue
-#     lr_coef = (
-#         meta_score_coef[
-#             (meta_score_coef["date"] == date_) & (meta_score_coef["algo"] == "LR")
-#         ]["coef"]
-#         .values[0][["macd", "rsi_30", "cci_30", "dx_30"]]
-#         .values
-#     )
-#     rf_coef = (
-#         meta_score_coef[
-#             (meta_score_coef["date"] == date_) & (meta_score_coef["algo"] == "RF")
-#         ]["coef"]
-#         .values[0][["macd", "rsi_30", "cci_30", "dx_30"]]
-#         .values
-#     )
-#     reference_coef = (
-#         meta_score_coef[
-#             (meta_score_coef["date"] == date_)
-#             & (meta_score_coef["algo"] == "Reference Model")
-#         ]["coef"]
-#         .values[0][["macd", "rsi_30", "cci_30", "dx_30"]]
-#         .values
-#     )
-#     for w in range(1, window):
-#         date_f = unique_trade_date[i + w]
-#         prx_coef = (
-#             meta_score_coef[
-#                 (meta_score_coef["date"] == date_f)
-#                 & (meta_score_coef["algo"] == "Reference Model")
-#             ]["coef"]
-#             .values[0][["macd", "rsi_30", "cci_30", "dx_30"]]
-#             .values
-#         )
-#         reference_coef += prx_coef
-#     reference_coef = reference_coef / window
-#     dt_coef = (
-#         meta_score_coef[
-#             (meta_score_coef["date"] == date_) & (meta_score_coef["algo"] == "DT")
-#         ]["coef"]
-#         .values[0][["macd", "rsi_30", "cci_30", "dx_30"]]
-#         .values
-#     )
-#     svm_coef = (
-#         meta_score_coef[
-#             (meta_score_coef["date"] == date_) & (meta_score_coef["algo"] == "SVM")
-#         ]["coef"]
-#         .values[0][["macd", "rsi_30", "cci_30", "dx_30"]]
-#         .values
-#     )
-#     saliency_coef_a2c = meta_Q[(meta_Q["date"] == date_) & (meta_Q["algo"] == "A2C")][
-#         "Saliency Map"
-#     ].values
-#     saliency_coef_ppo = meta_Q[(meta_Q["date"] == date_) & (meta_Q["algo"] == "PPO")][
-#         "Saliency Map"
-#     ].values
-#     lr_score = np.corrcoef(lr_coef, reference_coef)[0][1]
-#     rf_score = np.corrcoef(rf_coef, reference_coef)[0][1]
-#     dt_score = np.corrcoef(dt_coef, reference_coef)[0][1]
-#     svm_score = np.corrcoef(svm_coef, reference_coef)[0][1]
-#     saliency_score_a2c = np.corrcoef(saliency_coef_a2c, reference_coef)[0][1]
-#     saliency_score_ppo = np.corrcoef(saliency_coef_ppo, reference_coef)[0][1]
+window = 20
+for i in range(0, len(unique_trade_date) - window):
+    date_ = unique_trade_date[i]
+    if len(meta_score_coef[(meta_score_coef["date"] == date_)]) == 0:
+        continue
+    lr_coef = (
+        meta_score_coef[
+            (meta_score_coef["date"] == date_) & (meta_score_coef["algo"] == "LR")
+        ]["coef"]
+        .values[0][["macd", "rsi_30", "cci_30", "dx_30"]]
+        .values
+    )
+    rf_coef = (
+        meta_score_coef[
+            (meta_score_coef["date"] == date_) & (meta_score_coef["algo"] == "RF")
+        ]["coef"]
+        .values[0][["macd", "rsi_30", "cci_30", "dx_30"]]
+        .values
+    )
+    reference_coef = (
+        meta_score_coef[
+            (meta_score_coef["date"] == date_)
+            & (meta_score_coef["algo"] == "Reference Model")
+        ]["coef"]
+        .values[0][["macd", "rsi_30", "cci_30", "dx_30"]]
+        .values
+    )
+    for w in range(1, window):
+        date_f = unique_trade_date[i + w]
+        prx_coef = (
+            meta_score_coef[
+                (meta_score_coef["date"] == date_f)
+                & (meta_score_coef["algo"] == "Reference Model")
+            ]["coef"]
+            .values[0][["macd", "rsi_30", "cci_30", "dx_30"]]
+            .values
+        )
+        reference_coef += prx_coef
+    reference_coef = reference_coef / window
+    dt_coef = (
+        meta_score_coef[
+            (meta_score_coef["date"] == date_) & (meta_score_coef["algo"] == "DT")
+        ]["coef"]
+        .values[0][["macd", "rsi_30", "cci_30", "dx_30"]]
+        .values
+    )
+    svm_coef = (
+        meta_score_coef[
+            (meta_score_coef["date"] == date_) & (meta_score_coef["algo"] == "SVM")
+        ]["coef"]
+        .values[0][["macd", "rsi_30", "cci_30", "dx_30"]]
+        .values
+    )
+    saliency_coef_a2c = meta_Q[(meta_Q["date"] == date_) & (meta_Q["algo"] == "A2C")][
+        "Saliency Map"
+    ].values
+    saliency_coef_ppo = meta_Q[(meta_Q["date"] == date_) & (meta_Q["algo"] == "PPO")][
+        "Saliency Map"
+    ].values
+    lr_score = np.corrcoef(lr_coef, reference_coef)[0][1]
+    rf_score = np.corrcoef(rf_coef, reference_coef)[0][1]
+    dt_score = np.corrcoef(dt_coef, reference_coef)[0][1]
+    svm_score = np.corrcoef(svm_coef, reference_coef)[0][1]
+    saliency_score_a2c = np.corrcoef(saliency_coef_a2c, reference_coef)[0][1]
+    saliency_score_ppo = np.corrcoef(saliency_coef_ppo, reference_coef)[0][1]
 
-#     for algo in ["LR", "A2C", "RF", "PPO", "DT", "SVM"]:
-#         multi_performance_score["date"] += [date_]
-#         multi_performance_score["algo"] += [algo]
-#         if algo == "LR":
-#             score = lr_score
-#         elif algo == "RF":
-#             score = rf_score
-#         elif algo == "DT":
-#             score = dt_score
-#         elif algo == "A2C":
-#             score = saliency_score_a2c
-#         elif algo == "SVM":
-#             score = svm_score
-#         else:
-#             score = saliency_score_ppo
-#         multi_performance_score["score"] += [score]
+    for algo in ["LR", "A2C", "RF", "PPO", "DT", "SVM"]:
+        multi_performance_score["date"] += [date_]
+        multi_performance_score["algo"] += [algo]
+        if algo == "LR":
+            score = lr_score
+        elif algo == "RF":
+            score = rf_score
+        elif algo == "DT":
+            score = dt_score
+        elif algo == "A2C":
+            score = saliency_score_a2c
+        elif algo == "SVM":
+            score = svm_score
+        else:
+            score = saliency_score_ppo
+        multi_performance_score["score"] += [score]
 
-# multi_performance_score = pd.DataFrame(multi_performance_score)
+multi_performance_score = pd.DataFrame(multi_performance_score)
 
 from datetime import datetime as dt
 

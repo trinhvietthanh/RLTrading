@@ -107,12 +107,10 @@ class DRLAgent:
         account_memory = []
         actions_memory = []
         num_dates = len(environment.df.index.unique())
-        
         test_env.reset()
         for i in range(0, num_dates, 2):
             action, _states = model.predict(test_obs, deterministic=deterministic)
 
-            
             test_obs, rewards, dones, info = test_env.step(action)
             minus = 3 if num_dates % 2 else 4
             if i == (num_dates - minus):
