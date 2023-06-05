@@ -103,7 +103,6 @@ env_kwargs = {
 e_train_gym = StockPortfolioEnv(df=train, **env_kwargs)
 
 env_train, _ = e_train_gym.get_sb_env()
-print(type(env_train))
 
 from agents.stablebaselines3.models import DRLAgent
 
@@ -1077,7 +1076,6 @@ fig.update_yaxes(
     mirror=True,
 )
 fig.update_yaxes(zeroline=True, zerolinewidth=1, zerolinecolor="LightSteelBlue")
-fig.savefig("re.png")
 fig.show()
 
 pass

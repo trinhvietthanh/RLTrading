@@ -29,10 +29,10 @@ if not os.path.exists("./" + config.TENSORBOARD_LOG_DIR):
 if not os.path.exists("./" + config.RESULTS_DIR):
     os.makedirs("./" + config.RESULTS_DIR)
     
-TRAIN_START_DATE = '2018-01-01'
+TRAIN_START_DATE = '2021-01-01'
 TRAIN_END_DATE = '2022-12-01'
 TEST_START_DATE = '2022-12-02'
-TEST_END_DATE = '2023-04-20'
+TEST_END_DATE = '2023-05-08'
 
 # df = VNDirectDownloader(start_date = TRAIN_START_DATE,
 #                      end_date = TEST_END_DATE,
@@ -48,7 +48,7 @@ TEST_END_DATE = '2023-04-20'
 
 # df.to_csv("data_fe.csv", index=False)
 
-df = pd.read_csv("data_fe.csv")
+df = pd.read_csv("data/random.csv")
 
 # add covariance matrix as states
 df=df.sort_values(['date','tic'],ignore_index=True)
@@ -60,7 +60,6 @@ return_list = []
 # look back is one year
 lookback=252
 for i in range(lookback,len(df.index.unique())):
-  print(i)
   data_lookback = df.loc[i-lookback:i,:]
   price_lookback=data_lookback.pivot_table(index = 'date',columns = 'tic', values = 'close')
   return_lookback = price_lookback.pct_change().dropna()
@@ -79,7 +78,6 @@ train = data_split(df, TRAIN_START_DATE, TRAIN_END_DATE)
 
 stock_dimension = len(train.tic.unique()) 
 state_space = stock_dimension 
-print(f"Stock Dimension: {stock_dimension}, State Space: {state_space}")
 
 init_state = [config.VN30_PER[key]/100 for key in config.VN30_PER]
 env_kwargs = {
@@ -91,8 +89,8 @@ env_kwargs = {
     "tech_indicator_list": config.INDICATORS,
     "init_state":  init_state,
     "action_space": stock_dimension, 
-    "reward_scaling": 1e-4
-    
+    "reward_scaling": 1e-4,
+    "T_plus": 1,
 }
 
 e_train_gym = StockPortfolioEnv(df = train, **env_kwargs)
@@ -105,20 +103,20 @@ agent = DRLAgent(env = env_train)
 
 
 # #ppo
-agent = DRLAgent(env = env_train)
+# agent = DRLAgent(env = env_train)
 PPO_PARAMS = {
     "n_steps": 2048,
     "ent_coef": 0.01,
     "learning_rate": 0.00025,
     "batch_size": 64,
 }
-# model_ppo = agent.get_model("ppo",model_kwargs = PPO_PARAMS)
+model_ppo = agent.get_model("ppo",model_kwargs = PPO_PARAMS)
 
-# trained_ppo = agent.train_model(model=model_ppo, 
-#                              tb_log_name='ppo',
-#                              total_timesteps=80000)
-# trained_ppo.save('trained_models/trained_ppo.zip')
-trained_ppo = agent.load_model("ppo", "trained_models/trained_ppo.zip")
+trained_ppo = agent.train_model(model=model_ppo, 
+                             tb_log_name='ppo',
+                             total_timesteps=80000)
+trained_ppo.save('trained_models/trained_ppo_t_plus.zip')
+# trained_ppo = agent.load_model("ppo", "trained_models/trained_ppo.zip")
 # Trader
 trade = data_split(df, TEST_START_DATE, TEST_END_DATE)
 
@@ -127,8 +125,8 @@ e_trade_gym = StockPortfolioEnv(df = trade, **env_kwargs)
 df_daily_return, df_actions = DRLAgent.DRL_prediction(model=trained_ppo,
                         environment = e_trade_gym)
 
-df_daily_return.to_csv('df_daily_return.csv')
-df_actions.to_csv('df_actions.csv')
+df_daily_return.to_csv('results/df_daily_ppo_return_t_plus.csv')
+df_actions.to_csv('results/df_actions_ppo_t_plus.csv')
 
 
 #Backtest

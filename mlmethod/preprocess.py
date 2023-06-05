@@ -186,3 +186,24 @@ def list_method(train, unique_trade_date, initial_capital=1000000):
     
     window = 20
     
+
+def calculate_gradient(
+    model, interpolated_input, actions, feature_idx, stock_idx, h=1e-1
+):
+    forward_input = interpolated_input
+    forward_input[feature_idx + stock_dimension][stock_idx] += h
+    forward_Q = model.policy.evaluate_actions(
+        torch.FloatTensor(forward_input).reshape(
+            -1, stock_dimension * (stock_dimension + feature_dimension)
+        ),
+        torch.FloatTensor(actions).reshape(-1, stock_dimension),
+    )
+    interpolated_Q = model.policy.evaluate_actions(
+        torch.FloatTensor(interpolated_input).reshape(
+            -1, stock_dimension * (stock_dimension + feature_dimension)
+        ),
+        torch.FloatTensor(actions).reshape(-1, stock_dimension),
+    )
+    forward_Q = forward_Q[0].detach().cpu().numpy()[0]
+    interpolated_Q = interpolated_Q[0].detach().cpu().numpy()[0]
+    return (forward_Q - interpolated_Q) / h

@@ -76,7 +76,7 @@ class StockPortfolioEnv(gym.Env):
         tech_indicator_list,
         init_state=None,
         turbulence_threshold=None,
-        T_plus = 1,
+        T_plus = 0,
         lookback=252,
         day=0,
     ):
@@ -112,6 +112,7 @@ class StockPortfolioEnv(gym.Env):
             [self.data[tech].values.tolist() for tech in self.tech_indicator_list],
             axis=0,
         )
+
         self.terminal = False
         self.turbulence_threshold = turbulence_threshold
         # initalize state: inital portfolio return + individual stock return + individual weights
@@ -122,6 +123,7 @@ class StockPortfolioEnv(gym.Env):
         # memorize portfolio return each step
         self.portfolio_return_memory = [0]
         self.init_state = init_state
+
         if init_state:
             self.actions_memory = [init_state]
         else:
@@ -166,7 +168,8 @@ class StockPortfolioEnv(gym.Env):
             #  norm_actions = (np.array(actions) - np.array(actions).min()) / (np.array(actions) - np.array(actions).min()).sum()
             # else:
             #  norm_actions = actions
-            weights = self.new_asset_per(actions)
+            # weights = self.new_asset_per(actions)
+            weights = self.softmax_normalization(actions)
             # weights = norm_actions
             self.actions_memory.append(weights)
             last_day_memory = self.data
@@ -234,13 +237,13 @@ class StockPortfolioEnv(gym.Env):
         softmax_output = numerator / denominator
         return softmax_output
     
-    def new_asset_per(self, action):
-        learning_rate = 0.0005
-        old_ratio = self.actions_memory[-1]
-        new_ratio_sum = sum(action)
-        new_ratio_dist = [r/new_ratio_sum for r in action]
-        new_asset = [learning_rate * new_ratio_dist[i] + (1-learning_rate) * old_ratio[i] for i in range(len(old_ratio))]
-        return new_asset
+    # def new_asset_per(self, action):
+    #     learning_rate = 0.0005
+    #     old_ratio = self.actions_memory[-1]
+    #     new_ratio_sum = sum(action)
+    #     new_ratio_dist = [r/new_ratio_sum for r in action]
+    #     new_asset = [learning_rate * new_ratio_dist[i] + (1-learning_rate) * old_ratio[i] for i in range(len(old_ratio))]
+    #     return new_asset
 
     def save_asset_memory(self):
         date_list = self.date_memory
